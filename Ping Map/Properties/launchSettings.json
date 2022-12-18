@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Ping Map": {
+      "commandName": "Project",
+      "workingDirectory": "C:\\Users\\noahk\\source\\repos\\Ping Map\\Ping Map\\bin\\Debug\\net6.0\\RunDir"
+    }
+  }
+}
