@@ -26,15 +26,17 @@ namespace Ping_Map
 
             var ipList = GenerateIPlist(resolution);
 
-            ArrayList working = new ArrayList();
-            working = PingArrayAsync(ipList).Result; //Pings all the ips. this will take a while
+            var data = PingArrayAsync(ipList).Result; //Pings all the ips. this can take very long time
 
-            Console.WriteLine($"{Environment.NewLine}{Environment.NewLine}");
+            List<string> working = data[0].Cast<string>().ToList();
+            List<int> delay = data[1].Cast<int>().ToList();
 
-            CreateImage(working, resolution);
+            Console.WriteLine($"{Environment.NewLine}");
+
+            CreateImage(ipList, working, delay, resolution);
 
             // Completion
-            Console.WriteLine($"{Environment.NewLine}{Environment.NewLine}Done Pinging IPs. You may now close this window");
+            Console.WriteLine($"{Environment.NewLine}{Environment.NewLine}Done Pinging IPs, analyzing data, and saving the image. You may now close this window");
 
             while (true) { Thread.Sleep(1000000000); }
         }

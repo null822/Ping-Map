@@ -7,12 +7,13 @@ using SixLabors.ImageSharp.ColorSpaces;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using Color = SixLabors.ImageSharp.Color;
+using static Ping_Map.PingIPs;
 
 namespace Ping_Map
 {
     internal class ImageTest
     {
-        public static void CreateImage(ArrayList working, int resolution)
+        public static void CreateImage(ArrayList ipList, List<string> working, List<int> delay, int resolution)
         {
             Int32 size = (Int32) Math.Pow(resolution, 2);
 
@@ -36,24 +37,34 @@ namespace Ping_Map
                     }
                 });
 
-                ArrayList ipList = GenerateMappedIPlist(resolution);
-                //ArrayList ipList = new ArrayList();
-                //foreach (var ip in ipArray) ipList.Add(ip);
-                
+                ArrayList ipListMapped = GenerateMappedIPlist(resolution);
+
+                Console.WriteLine($"{Environment.NewLine}{Environment.NewLine}");
+
+                Console.WriteLine("|    IP Address   |" + SpcGen(size.ToString().Length / 4) + "X " + SpcGen(size.ToString().Length / 4) + "|" +SpcGen(size.ToString().Length / 4) + "Y " + SpcGen(size.ToString().Length / 4) + "| Delay | Brightness");
+                Console.WriteLine("|                 |" + SpcGen(size.ToString().Length / 4) + "  " + SpcGen(size.ToString().Length / 4) + "|" +SpcGen(size.ToString().Length / 4) + "  " + SpcGen(size.ToString().Length / 4) + "|       |     |");
+
                 foreach (String ip in working)
                 {
+                    float indexMapped = ipListMapped.IndexOf(ip);
                     float index = ipList.IndexOf(ip);
-                    int y = (int)Math.Floor(index / size);
-                    int x = (int)index - y * size;
 
-                    Console.WriteLine($"IP: {ip}, X: {x}, Y: {y}");
+                    int y = (int)Math.Floor(indexMapped / size);
+                    int x = (int)indexMapped - y * size;
+
+                    long ipDelay = delay[(int)index];
+
                     try
                     {
-                        image[x, y] = Color.White;
+                        int brightness = (int)Math.Log(ipDelay / 7.8125, 2.1) * 32;
+
+                        Console.WriteLine($"| {IPbeautify(ip)} | {BeautifyInt(x.ToString(), size.ToString().Length)} | {BeautifyInt(y.ToString(), size.ToString().Length)} |  {BeautifyInt(ipDelay.ToString(), 4)} | {BeautifyInt(brightness.ToString(), 3)} |");
+
+                        image[x, y] = Color.FromRgb((byte)brightness, (byte)brightness, (byte)brightness);
                     }
                     catch
                     {
-                        Console.WriteLine($"Could not write pixel for IP {ip}");
+                        Console.WriteLine($"Error writing pixel for {ip}");
                     }
                 }
                 
@@ -64,7 +75,8 @@ namespace Ping_Map
         {
             ArrayList ipList = new ArrayList();
 
-            Console.WriteLine($" |   TREE      | IP");
+            Console.WriteLine($"|     TREE     |    IP Address   |");
+            Console.WriteLine($"|              |                 |");
 
             var sideLen = (int)Math.Sqrt(resolution);
 
@@ -88,15 +100,10 @@ namespace Ping_Map
 
             for (var i5 = 0; i5 <= Math.Pow(resolution, 2)-1; i5++)
             {
-                var row = i5;
-
                 add1 = addValues[0];
                 add2 = addValues[1];
                 add3 = addValues[2];
                 add4 = addValues[3];
-
-                Console.WriteLine(" | NEWLINE ---- [ " + add1 + " | " + add2 + " | " + add3 + " | " + add4 + " | ]");
-
 
                 for (var i4 = 1 + (add1 * sideLen); i4 <= sideLen + (add1 * sideLen); i4++) {
                     
@@ -109,7 +116,7 @@ namespace Ping_Map
                                 String ip = $"{(i4 - 1) * scale}.{(i3 - 1) * scale}.{(i2 - 1) * scale}.{(i1 - 1) * scale}";
 
                                 ipList.Add(ip);
-                                Console.WriteLine($" | {i5} | {i4 - 1} {i3 - 1} {i2 - 1} {i1 - 1} | IP: {ip}");
+                                Console.WriteLine("| " + BeautifyInt(i5.ToString(), (Math.Pow(resolution, 2) - 1).ToString().Length) + " | " + BeautifyInt((i4 - 1).ToString(), resolution.ToString().Length) + " " + BeautifyInt((i3 - 1).ToString(), resolution.ToString().Length) + " " + BeautifyInt((i2 - 1).ToString(), resolution.ToString().Length) + " " + BeautifyInt((i1 - 1).ToString(), resolution.ToString().Length) + " | " + IPbeautify(ip) + " |");
 
                             }
                         }
@@ -169,51 +176,5 @@ namespace Ping_Map
 
             return current;
         }
-
-
-
-
-
-
-        /*      BACKUP
-        public static ArrayList GenerateMappedIPlist(int resolution)
-        {
-            //Array ipList = Array.CreateInstance(typeof(String), (Int32)Math.Pow(resolution, 4) + 1);
-            ArrayList ipList = new ArrayList();
-
-            Console.WriteLine($" |           | IP");
-
-            for (var i5 = 0; i5 <= Math.Pow(resolution, 2); i5++)
-            {
-                var row = i5;
-
-                for (var i4 = 1; i4 <= Math.Sqrt(resolution) * 2; i4++)
-                {
-
-                    for (var i3 = 1; i3 <= Math.Sqrt(resolution) * 2; i3++)
-                    {
-
-                        for (var i2 = 1; i2 <= Math.Sqrt(resolution) * 2; i2++)
-                        {
-
-                            for (var i1 = 1; i1 <= Math.Sqrt(resolution) * 2; i1++)
-                            {
-
-                                String ip = $"{i4 * resolution}:{i3 * resolution}:{i2 * resolution}:{i1 * resolution}";
-
-                                ipList.Add(ip);
-                                Console.WriteLine($" | {i5} {i4 - 1} {i3 - 1} {i2 - 1} {i1 - 1} | IP: {ip}");
-
-                            }
-                        }
-                    }
-                }
-            }
-
-
-            return ipList;
-
-        }
-        */
     }
 }
