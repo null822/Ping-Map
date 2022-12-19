@@ -56,7 +56,7 @@ namespace Ping_Map
 
                     try
                     {
-                        int brightness = (int)Math.Log(ipDelay / 7.8125, 2.1) * 32;
+                        int brightness = (int)(Math.Log(ipDelay / (float)7.8125, 2.1) * 32);
 
                         Console.WriteLine($"| {IPbeautify(ip)} | {BeautifyInt(x.ToString(), size.ToString().Length)} | {BeautifyInt(y.ToString(), size.ToString().Length)} |  {BeautifyInt(ipDelay.ToString(), 4)} | {BeautifyInt(brightness.ToString(), 3)} |");
 
