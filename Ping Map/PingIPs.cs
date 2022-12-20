@@ -6,6 +6,7 @@ using System.Linq.Expressions;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Text;
+using System.Threading.Tasks;
 using static Ping_Map.Program;
 
 
@@ -20,13 +21,9 @@ namespace Ping_Map
 
     public class PingIPs
     {
-        public static async Task<List<ArrayList>> PingArrayAsync(ArrayList ipList)
+        public static async Task<List<ArrayList>> PingArray(ArrayList ipList)
         {
             Console.WriteLine("Pining IPs");
-
-            ArrayList working = new ArrayList();
-            ArrayList delay = new ArrayList();
-
 
             List<IPAddress> pingTargetHostsList = new();
 
@@ -41,47 +38,35 @@ namespace Ping_Map
             var pingTasks = pingTargetHosts.Select(
                 host => BufferCall(host)).ToList();
 
+            Console.WriteLine($"{Environment.NewLine}{Environment.NewLine}");
 
             var pingResults = await Task.WhenAll(pingTasks);
 
             pingResults = pingResults.Where(val => val != null).ToArray();
 
-            Console.WriteLine($"{Environment.NewLine}{Environment.NewLine}");
-            Console.WriteLine("Working IPs: ");
 
-            Console.WriteLine($"{Environment.NewLine}");
-
-            Console.WriteLine("| Index |   IP Address    | Delay |");
-            Console.WriteLine("|       |                 |       |");
+            Console.WriteLine("Retrieving Status Data");
+            var processStatusTasks = pingResults.Select(
+                reply => AnalyzeDataStatus(reply, pingResults)).ToList();
+            ArrayList status = new ArrayList(await Task.WhenAll(processStatusTasks));
 
 
-            foreach (PingReply reply in pingResults)
+            Console.WriteLine("Retrieving Delay Data");
+            var processDelayTasks = pingResults.Select(
+                reply => AnalyzeDataDelay(reply)).ToList();
+            ArrayList delay = new ArrayList(await Task.WhenAll(processDelayTasks));
+
+            ArrayList working = new ArrayList();
+
+            Console.WriteLine("Copying Working IPs");
+
+            foreach (string ip in status)
             {
-                if (reply.Status == IPStatus.Success && !reply.Address.Equals(IPAddress.Parse("8.8.8.8")))
+                if (ip != "failed")
                 {
-                    var time = reply.RoundtripTime;
-                    if (!delay.Contains(time))
-                    {
-                        delay.Add((int)time);
-                    }
-
-                    var workingIP = reply.Address.ToString();
-                    if (!working.Contains(workingIP))
-                    {
-                        working.Add(workingIP);
-                    }
-                }
-                else
-                {
-                    delay.Add(0);
-                }
-
-                if (reply.Address.ToString() != "0.0.0.0" && reply.Address.ToString() != "8.8.8.8" && reply.RoundtripTime != 0)
-                {
-                    Console.WriteLine("|  " + BeautifyInt(Array.IndexOf(pingResults, reply).ToString(), pingResults.Length.ToString().Length) + "  | " + IPbeautify(reply.Address.ToString()) + " | " + BeautifyInt(reply.RoundtripTime.ToString(), 4) + "  |");
+                    working.Add(ip);
                 }
             }
-            
 
             List<ArrayList> data = new()
             {
@@ -90,6 +75,40 @@ namespace Ping_Map
             };
             return data;
         }
+
+        public static Task<string> AnalyzeDataStatus(PingReply reply, PingReply[] pingResults)
+        {
+            /*if (reply.Address.ToString() != "0.0.0.0" && reply.Address.ToString() != "8.8.8.8" && reply.RoundtripTime != 0)
+            {
+                Console.WriteLine(BeautifyInt(Array.IndexOf(pingResults, reply).ToString(), pingResults.Length.ToString().Length) + " | " + IPbeautify(reply.Address.ToString()));
+            }
+            */
+            if (reply.Status == IPStatus.Success && !reply.Address.Equals(IPAddress.Parse("8.8.8.8")))
+            {
+                var workingIP = reply.Address.ToString();
+                return Task.FromResult(workingIP);
+            }
+            
+            return Task.FromResult("failed");
+        }
+
+        public static Task<int> AnalyzeDataDelay(PingReply reply)
+        {
+            /*if (reply.Address.ToString() != "0.0.0.0" && reply.Address.ToString() != "8.8.8.8" && reply.RoundtripTime != 0)
+            {
+                Console.WriteLine(IPbeautify(reply.Address.ToString()) + " | " + BeautifyInt(reply.RoundtripTime.ToString(), 4));
+            }*/
+
+            if (reply.Status == IPStatus.Success && !reply.Address.Equals(IPAddress.Parse("8.8.8.8")))
+            {
+                var time = reply.RoundtripTime;
+
+                return Task.FromResult((int)time);
+            }
+
+            return Task.FromResult(0);
+        }
+
 
         public static Task<PingReply> Ping(IPAddress host)
         {
@@ -102,10 +121,8 @@ namespace Ping_Map
             Console.CursorLeft = 0;
             Console.Write("                                                                 ");
             Console.CursorLeft = 0;
-            try
-            {
-                Console.Write("IP: " + IPbeautify(host.ToString()) + " | " + Progress.Counter + " / " + Progress.Total + " |");
-            } catch {}
+            
+            Console.Write("IP: " + IPbeautify(host.ToString()) + " | " + Progress.Counter + " / " + Progress.Total + " |");
 
             try
             {
@@ -135,15 +152,15 @@ namespace Ping_Map
 
 
             //account for removed '.'s
-            index2 = index2 + 1;
-            index3 = index3 + 2;
+            index2 += 1;
+            index3 += + 2;
 
             var num1 = ip.Substring(0, index1);
             var num2 = ip.Substring(index1+1, index2 - index1 - 1);
             var num3 = ip.Substring(index2+1, index3 - index2 - 1);
             var num4 = ip.Substring(index3+1);
 
-            String[] numArray = 
+            string[] numArray = 
             {
                 num1,
                 num2,
@@ -174,7 +191,7 @@ namespace Ping_Map
             return outputIP;
         }
 
-        public static String SpcGen(int count)
+        public static string SpcGen(int count)
         {
             var output = "";
             for (int i = 0; i <= count; i++)
@@ -186,7 +203,7 @@ namespace Ping_Map
         }
 
 
-        public static String BeautifyInt(string integer, int length)
+        public static string BeautifyInt(string integer, int length)
         {
             var dif = length - integer.Length - 1;
 

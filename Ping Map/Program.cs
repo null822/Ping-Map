@@ -9,7 +9,7 @@ namespace Ping_Map
 {
     internal class Program
     {
-        private static void Main(string[] args)
+        private static async Task Main(string[] args)
         {
             Console.WriteLine($"Resolution (e.g. 16 scans 16^4 / 256^4 of all IP Addresses)");
             var resolution = 16;
@@ -26,17 +26,17 @@ namespace Ping_Map
 
             var ipList = GenerateIPlist(resolution);
 
-            var data = PingArrayAsync(ipList).Result; //Pings all the ips. this can take very long time
+            var data = PingArray(ipList).Result; //Pings all the ips. this can take very long time
 
             List<string> working = data[0].Cast<string>().ToList();
             List<int> delay = data[1].Cast<int>().ToList();
 
             Console.WriteLine($"{Environment.NewLine}");
 
-            CreateImage(ipList, working, delay, resolution);
-
+            await CreateImage(ipList, working, delay, resolution); // Maps IPs to image
+            
             // Completion
-            Console.WriteLine($"{Environment.NewLine}{Environment.NewLine}Done Pinging IPs, analyzing data, and saving the image. You may now close this window");
+            Console.WriteLine($"{Environment.NewLine}{Environment.NewLine}Process Completed. You may now close this window");
 
             while (true) { Thread.Sleep(1000000000); }
         }

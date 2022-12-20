@@ -1,4 +1,5 @@
-﻿using System;
+﻿
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
@@ -13,7 +14,7 @@ namespace Ping_Map
 {
     internal class ImageTest
     {
-        public static void CreateImage(ArrayList ipList, List<string> working, List<int> delay, int resolution)
+        public static async Task CreateImage(ArrayList ipList, List<string> working, List<int> delay, int resolution)
         {
             Int32 size = (Int32) Math.Pow(resolution, 2);
 
@@ -37,13 +38,25 @@ namespace Ping_Map
                     }
                 });
 
+                Console.WriteLine("Generating Mapped IP List");
                 ArrayList ipListMapped = GenerateMappedIPlist(resolution);
 
-                Console.WriteLine($"{Environment.NewLine}{Environment.NewLine}");
+                Console.WriteLine("Remapping IP List");
+                var mappedIPsTasks = working.Select(
+                    ip => MapIPs(ip, ipList, ipListMapped, size, delay)).ToList();
+                ArrayList imageData = new ArrayList(await Task.WhenAll(mappedIPsTasks));
 
-                Console.WriteLine("|    IP Address   |" + SpcGen(size.ToString().Length / 4) + "X " + SpcGen(size.ToString().Length / 4) + "|" +SpcGen(size.ToString().Length / 4) + "Y " + SpcGen(size.ToString().Length / 4) + "| Delay | Brightness");
-                Console.WriteLine("|                 |" + SpcGen(size.ToString().Length / 4) + "  " + SpcGen(size.ToString().Length / 4) + "|" +SpcGen(size.ToString().Length / 4) + "  " + SpcGen(size.ToString().Length / 4) + "|       |     |");
+                Console.WriteLine("Writing Pixels to Image");
+                foreach (ArrayList data in imageData)
+                {
+                    int x = (int)data[0];
+                    int y = (int)data[1];
+                    int brightness = (int)data[2];
 
+                    image[x, y] = Color.FromRgb((byte)brightness, (byte)brightness, (byte)brightness);
+                }
+
+                /*
                 foreach (String ip in working)
                 {
                     float indexMapped = ipListMapped.IndexOf(ip);
@@ -59,6 +72,7 @@ namespace Ping_Map
                         int brightness = (int)(Math.Log(ipDelay / (float)7.8125, 2.1) * 32);
 
                         Console.WriteLine($"| {IPbeautify(ip)} | {BeautifyInt(x.ToString(), size.ToString().Length)} | {BeautifyInt(y.ToString(), size.ToString().Length)} |  {BeautifyInt(ipDelay.ToString(), 4)} | {BeautifyInt(brightness.ToString(), 3)} |");
+                        Console.WriteLine(index);
 
                         image[x, y] = Color.FromRgb((byte)brightness, (byte)brightness, (byte)brightness);
                     }
@@ -67,17 +81,52 @@ namespace Ping_Map
                         Console.WriteLine($"Error writing pixel for {ip}");
                     }
                 }
-                
+                */
+                Console.WriteLine($"{Environment.NewLine}");
+                Console.WriteLine("Saving Image");
+
                 image.Save("map_" + resolution +".png");
             }
         }
+
+        public static Task<ArrayList> MapIPs(string ip, ArrayList ipList, ArrayList ipListMapped, int size, List<int> delay)
+        {
+            float indexMapped = ipListMapped.IndexOf(ip);
+            float index = ipList.IndexOf(ip);
+
+            int y = (int)Math.Floor(indexMapped / size);
+            int x = (int)indexMapped - y * size;
+
+            long ipDelay = delay[(int)index];
+
+
+            int brightness = 0;
+
+            try
+            {
+                brightness = (int)(Math.Log(ipDelay / (float)7.8125, 2.1) * 32);
+
+                //Console.WriteLine($"| {IPbeautify(ip)} | {BeautifyInt(x.ToString(), size.ToString().Length)} | {BeautifyInt(y.ToString(), size.ToString().Length)} |  {BeautifyInt(ipDelay.ToString(), 4)} | {BeautifyInt(brightness.ToString(), 3)} |");
+            }
+            catch
+            {
+                Console.WriteLine($"Error writing pixel for {ip}");
+            }
+
+            ArrayList data = new ArrayList()
+            {
+                x,
+                y,
+                brightness
+            };
+
+            return Task.FromResult(data);
+        }
+
         public static ArrayList GenerateMappedIPlist(int resolution)
         {
             ArrayList ipList = new ArrayList();
-
-            Console.WriteLine($"|     TREE     |    IP Address   |");
-            Console.WriteLine($"|              |                 |");
-
+            
             var sideLen = (int)Math.Sqrt(resolution);
 
             // create addValues
@@ -113,10 +162,10 @@ namespace Ping_Map
                             
                             for (var i1 = 1 + (add4 * sideLen); i1 <= sideLen + (add4 * sideLen); i1++) {
                                 
-                                String ip = $"{(i4 - 1) * scale}.{(i3 - 1) * scale}.{(i2 - 1) * scale}.{(i1 - 1) * scale}";
+                                string ip = $"{(i4 - 1) * scale}.{(i3 - 1) * scale}.{(i2 - 1) * scale}.{(i1 - 1) * scale}";
 
                                 ipList.Add(ip);
-                                Console.WriteLine("| " + BeautifyInt(i5.ToString(), (Math.Pow(resolution, 2) - 1).ToString().Length) + " | " + BeautifyInt((i4 - 1).ToString(), resolution.ToString().Length) + " " + BeautifyInt((i3 - 1).ToString(), resolution.ToString().Length) + " " + BeautifyInt((i2 - 1).ToString(), resolution.ToString().Length) + " " + BeautifyInt((i1 - 1).ToString(), resolution.ToString().Length) + " | " + IPbeautify(ip) + " |");
+                                //Console.WriteLine("| " + BeautifyInt(i5.ToString(), (Math.Pow(resolution, 2) - 1).ToString().Length) + " | " + BeautifyInt((i4 - 1).ToString(), resolution.ToString().Length) + " " + BeautifyInt((i3 - 1).ToString(), resolution.ToString().Length) + " " + BeautifyInt((i2 - 1).ToString(), resolution.ToString().Length) + " " + BeautifyInt((i1 - 1).ToString(), resolution.ToString().Length) + " | " + IPbeautify(ip) + " |");
 
                             }
                         }
