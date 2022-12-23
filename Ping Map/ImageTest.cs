@@ -1,21 +1,22 @@
-﻿
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Drawing;
+﻿using System.Collections;
+using ILGPU;
+using ILGPU.Runtime;
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.ColorSpaces;
 using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
 using Color = SixLabors.ImageSharp.Color;
-using static Ping_Map.PingIPs;
 
 namespace Ping_Map
 {
     internal class ImageTest
     {
-        public static async Task CreateImage(ArrayList ipList, List<string> working, List<int> delay, int resolution)
+        public static void CreateImage(ArrayList ipArrayList, List<string> working, List<int> delay, int resolution, Accelerator accelerator)
         {
+            List<string> ipList = new List<string>();
+            foreach (string ip in ipArrayList)
+            {
+                ipList.Add(ip);
+            }
+
             Int32 size = (Int32) Math.Pow(resolution, 2);
 
             using (Image<Rgba32> image = new(size, size))
@@ -38,192 +39,125 @@ namespace Ping_Map
                     }
                 });
 
-                Console.WriteLine("Generating Mapped IP List");
-                ArrayList ipListMapped = GenerateMappedIPlist(resolution);
 
-                Console.WriteLine("Remapping IP List");
-                var mappedIPsTasks = working.Select(
-                    ip => MapIPs(ip, ipList, ipListMapped, size, delay)).ToList();
-                ArrayList imageData = new ArrayList(await Task.WhenAll(mappedIPsTasks));
 
+                Console.WriteLine("Calculating Image Data: ");
+                
+                Console.WriteLine("    Coords");
+                List<int[]> imageDataCoords = ImageDataCoords(accelerator, size);
+
+                Console.WriteLine("    Brightness");
+                int[] imageDataB = ImageDataBrightness(accelerator, delay.ToArray(), size);
+
+                // unpack the coords
+                int[] imageDataY = imageDataCoords[0];
+                int[] imageDataX = imageDataCoords[1];
+
+
+                Console.WriteLine(Environment.NewLine);
                 Console.WriteLine("Writing Pixels to Image");
-                foreach (ArrayList data in imageData)
+                for (int i = 0; i < ipList.Count; i++)
                 {
-                    int x = (int)data[0];
-                    int y = (int)data[1];
-                    int brightness = (int)data[2];
-
-                    image[x, y] = Color.FromRgb((byte)brightness, (byte)brightness, (byte)brightness);
+                    int x = imageDataX[i];
+                    int y = imageDataY[i];
+                    int b = imageDataB[i];
+                    
+                    image[x, y] = Color.FromRgb((byte)b, (byte)b, (byte)b);
                 }
-
-                /*
-                foreach (String ip in working)
-                {
-                    float indexMapped = ipListMapped.IndexOf(ip);
-                    float index = ipList.IndexOf(ip);
-
-                    int y = (int)Math.Floor(indexMapped / size);
-                    int x = (int)indexMapped - y * size;
-
-                    long ipDelay = delay[(int)index];
-
-                    try
-                    {
-                        int brightness = (int)(Math.Log(ipDelay / (float)7.8125, 2.1) * 32);
-
-                        Console.WriteLine($"| {IPbeautify(ip)} | {BeautifyInt(x.ToString(), size.ToString().Length)} | {BeautifyInt(y.ToString(), size.ToString().Length)} |  {BeautifyInt(ipDelay.ToString(), 4)} | {BeautifyInt(brightness.ToString(), 3)} |");
-                        Console.WriteLine(index);
-
-                        image[x, y] = Color.FromRgb((byte)brightness, (byte)brightness, (byte)brightness);
-                    }
-                    catch
-                    {
-                        Console.WriteLine($"Error writing pixel for {ip}");
-                    }
-                }
-                */
+                
                 Console.WriteLine($"{Environment.NewLine}");
                 Console.WriteLine("Saving Image");
 
-                image.Save("map_" + resolution +".png");
+                image.SaveAsync("map_" + resolution +".png");
             }
         }
+        
+        #region GPU Compute
 
-        public static Task<ArrayList> MapIPs(string ip, ArrayList ipList, ArrayList ipListMapped, int size, List<int> delay)
+        #region Coords
+        
+        static List<int[]> ImageDataCoords(Accelerator accelerator, int size)
         {
-            float indexMapped = ipListMapped.IndexOf(ip);
-            float index = ipList.IndexOf(ip);
 
-            int y = (int)Math.Floor(indexMapped / size);
-            int x = (int)indexMapped - y * size;
+            var kernel = accelerator.LoadAutoGroupedStreamKernel<
+                Index1D,
+                int,
+                ArrayView1D<int, Stride1D.Dense>,
+                ArrayView1D<int, Stride1D.Dense>
+            >(ImageDataCoordsKernel);
 
-            long ipDelay = delay[(int)index];
+            using var yCoordsOutBuffer = accelerator.Allocate1D<int>((long)Math.Pow(size, 2));
+            using var xCoordsOutBuffer = accelerator.Allocate1D<int>((long)Math.Pow(size, 2));
 
+            kernel(yCoordsOutBuffer.Extent.ToIntIndex(), size, yCoordsOutBuffer.View, xCoordsOutBuffer.View);
 
-            int brightness = 0;
-
-            try
+            List<int[]> outputPackage = new List<int[]> (2)
             {
-                brightness = (int)(Math.Log(ipDelay / (float)7.8125, 2.1) * 32);
-
-                //Console.WriteLine($"| {IPbeautify(ip)} | {BeautifyInt(x.ToString(), size.ToString().Length)} | {BeautifyInt(y.ToString(), size.ToString().Length)} |  {BeautifyInt(ipDelay.ToString(), 4)} | {BeautifyInt(brightness.ToString(), 3)} |");
-            }
-            catch
-            {
-                Console.WriteLine($"Error writing pixel for {ip}");
-            }
-
-            ArrayList data = new ArrayList()
-            {
-                x,
-                y,
-                brightness
+                yCoordsOutBuffer.GetAsArray1D(),
+                xCoordsOutBuffer.GetAsArray1D()
             };
-
-            return Task.FromResult(data);
+            // Reads data from the GPU buffer into a new CPU array
+            return outputPackage;
         }
-
-        public static ArrayList GenerateMappedIPlist(int resolution)
+        
+        // The kernel that runs on the accelerated device
+        static void ImageDataCoordsKernel(
+            Index1D index,
+            int size,
+            ArrayView1D<int, Stride1D.Dense> yCoords,
+            ArrayView1D<int, Stride1D.Dense> xCoords
+        )
         {
-            ArrayList ipList = new ArrayList();
-            
-            var sideLen = (int)Math.Sqrt(resolution);
+            int y = (int)Math.Floor((float)index.Size / size);
+            int x = index.Size - y * size;
 
-            // create addValues
-            int add1 = 0;
-            int add2 = 0;
-            int add3 = 0;
-            int add4 = 0;
-
-            List<int> addValues = new List<int>
-            {
-                add1,
-                add2,
-                add3,
-                add4
-            };
-
-            var scale = 256 / resolution;
-
-            //loop through all the IPs in a specific order
-
-            for (var i5 = 0; i5 <= Math.Pow(resolution, 2)-1; i5++)
-            {
-                add1 = addValues[0];
-                add2 = addValues[1];
-                add3 = addValues[2];
-                add4 = addValues[3];
-
-                for (var i4 = 1 + (add1 * sideLen); i4 <= sideLen + (add1 * sideLen); i4++) {
-                    
-                    for (var i3 = 1 + (add2 * sideLen); i3 <= sideLen + (add2 * sideLen); i3++) {
-                        
-                        for (var i2 = 1 + (add3 * sideLen); i2 <= sideLen + (add3 * sideLen); i2++) {
-                            
-                            for (var i1 = 1 + (add4 * sideLen); i1 <= sideLen + (add4 * sideLen); i1++) {
-                                
-                                string ip = $"{(i4 - 1) * scale}.{(i3 - 1) * scale}.{(i2 - 1) * scale}.{(i1 - 1) * scale}";
-
-                                ipList.Add(ip);
-                                //Console.WriteLine("| " + BeautifyInt(i5.ToString(), (Math.Pow(resolution, 2) - 1).ToString().Length) + " | " + BeautifyInt((i4 - 1).ToString(), resolution.ToString().Length) + " " + BeautifyInt((i3 - 1).ToString(), resolution.ToString().Length) + " " + BeautifyInt((i2 - 1).ToString(), resolution.ToString().Length) + " " + BeautifyInt((i1 - 1).ToString(), resolution.ToString().Length) + " | " + IPbeautify(ip) + " |");
-
-                            }
-                        }
-                    }
-                }
-
-                addValues = NewLine(addValues, sideLen);
-            }
-
-            return ipList;
-
+            yCoords[index] = y;
+            xCoords[index] = x;
         }
 
-        public static List<int> NewLine(List<int> prev, int sideLen)
+        #endregion
+
+
+        #region Brightness Values
+        
+        static int[] ImageDataBrightness(Accelerator accelerator, int[] delay, int size)
         {
-            // unpack
-            var add1 = prev[0];
-            var add2 = prev[1];
-            var add3 = prev[2];
-            var add4 = prev[3];
-
-            // increment
-            add4++;
-
-            // overflow logic
-            if (add4 >= sideLen)
-            {
-                add4 = 0;
-                add3++;
-            } 
+            var kernel = accelerator.LoadAutoGroupedStreamKernel<
+                Index1D,
+                //Index1D,
+                int,
+                ArrayView1D<int, Stride1D.Dense>,
+                ArrayView1D<int, Stride1D.Dense>
+            >(ImageDataBrightnessKernel);
             
-            if (add3 >= sideLen)
-            {
-                add3 = 0;
-                add2++;
-            }
-            
-            if (add2 >= sideLen)
-            {
-                add2 = 0;
-                add1++;
-            }
-            
-            if (add1 >= sideLen)
-            {
-                add1 = 0;
-            }
+            using var delayBuffer = accelerator.Allocate1D<int>((long)Math.Pow(size, 2));
+            using var bValueOutBuffer = accelerator.Allocate1D<int>((long)Math.Pow(size, 2));
 
-            // repack
-            List<int> current = new List<int>
-            {
-                add1,
-                add2,
-                add3,
-                add4
-            };
+            delayBuffer.CopyFromCPU(delay);
 
-            return current;
+            kernel(delayBuffer.Extent.ToIntIndex(), size, delayBuffer.View, bValueOutBuffer.View);
+
+            // Reads data from the GPU buffer into a new CPU array
+            
+            return bValueOutBuffer.GetAsArray1D();
         }
+
+        // The kernel that runs on the accelerated device
+        static void ImageDataBrightnessKernel(
+            Index1D index1D,
+            //Index2D index2D,
+            int size,
+            ArrayView1D<int, Stride1D.Dense> delay,
+            ArrayView1D<int, Stride1D.Dense> bValueOut
+        )
+        {
+            int b = (int)(Math.Log(delay[index1D] / (float)7.8125, 2.1) * 32);
+
+            bValueOut[index1D] = b;
+        }
+
+        #endregion
+
+        #endregion
     }
 }

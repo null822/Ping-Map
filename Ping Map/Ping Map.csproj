@@ -6,13 +6,24 @@
     <RootNamespace>Ping_Map</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Platforms>AnyCPU;x64</Platforms>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="ILGPU" Version="1.3.0" />
+    <PackageReference Include="ILGPU.Algorithms" Version="1.3.0" />
     <PackageReference Include="Microsoft.NETCore.App" Version="2.2.8" />
     <PackageReference Include="Microsoft.NETCore.Runtime" Version="1.0.1" />
     <PackageReference Include="NETStandard.Library" Version="2.0.3" />
     <PackageReference Include="SixLabors.ImageSharp" Version="2.1.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="C:\Users\noahk\.nuget\packages\ilgpu.lightning\0.3.0\build\X64\Windows\ILGPU.Lightning.Native.dll" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="C:\Users\noahk\.nuget\packages\ilgpu.lightning\0.3.0\build\X64\Windows\ILGPU.Lightning.Native.dll" />
   </ItemGroup>
 
 </Project>
