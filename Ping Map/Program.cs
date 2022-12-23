@@ -11,7 +11,7 @@ namespace Ping_Map
         private static Task Main(string[] args)
         {
             Console.CursorVisible = false;
-            Console.WriteLine($"CUDA | Name{Environment.NewLine}");
+            Console.WriteLine($"CUDA | Threads | Name{Environment.NewLine}");
 
             var context2 = Context.Create().EnableAlgorithms().Default();
             var context = context2.ToContext();
@@ -79,12 +79,12 @@ namespace Ping_Map
                     {
                         if (context.GetCudaDevice(i).Equals(device))
                         {
-                            Console.WriteLine($"   1 | {device.Name}");
+                            Console.WriteLine($"   1 | {BeautifyInt(device.MaxNumThreads, 7)} | {device.Name}");
 
                         }
                         else
                         {
-                            Console.WriteLine($"   0 | {device.Name}");
+                            Console.WriteLine($"   0 | {BeautifyInt(device.MaxNumThreads, 7)} | {device.Name}");
                         }
                     }
                     catch { }
@@ -231,6 +231,29 @@ namespace Ping_Map
             };
 
             return current;
+        }
+
+        public static string CharGen(int count, string character)
+        {
+            string output = "";
+            for (int i = 0; i < count; i++)
+            {
+                output += character;
+            }
+            return output;
+        }
+
+        public static string BeautifyInt(int input, int length)
+        {
+            var inputLength = input.ToString().Length;
+            if (inputLength < length)
+            {
+                var diff = length - inputLength;
+                return CharGen(diff, " ") + input;
+            }
+
+            return input.ToString();
+            
         }
     }
 }
