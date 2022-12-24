@@ -1,4 +1,5 @@
 ﻿using System.Collections;
+using System.Net;
 using static Ping_Map.PingIPs;
 using static Ping_Map.ImageTest;
 using ILGPU;
@@ -19,31 +20,64 @@ namespace Ping_Map
             DisplayDevices(context);
 
 
-            var index = DeviceMenu(0, context.Devices.Length);
+            var deviceIndex = DeviceMenu(0, context.Devices.Length);
 
-            while (index == -1)
+            while (deviceIndex == -1)
             {
-                index = DeviceMenu(0, context.Devices.Length);
+                deviceIndex = DeviceMenu(0, context.Devices.Length);
             }
 
-            var device2 = context.Devices[index-2];
+            var device2 = context.Devices[deviceIndex -2];
             var accelerator = device2.CreateAccelerator(context);
 
             Console.CursorTop = 2;
             DisplayDevices(context);
-            Console.CursorTop = index;
+            Console.CursorTop = deviceIndex;
             Console.Write($">");
             Console.CursorTop = Console.CursorTop = context.Devices.Length + 2;
 
-
             Console.WriteLine(Environment.NewLine);
-            Console.WriteLine($"Resolution (x^4 / 256^4 Addresses will be scanned, Square numbers are recommended)");
+
             var resolution = 16;
+            int[] resolutionArray = { 16, 16, 16, 16 };
+
+            Console.WriteLine($"Resolution (x^4 / 256^4 Addresses will be scanned, Square numbers only)");
+            Console.WriteLine(Environment.NewLine);
             Console.CursorVisible = true;
-            try
+            Console.WriteLine($"Advanced Selection? (Spacebar for Yes)");
+
+            if (Console.ReadKey().Key == ConsoleKey.Spacebar)
             {
-                resolution = int.Parse(Console.ReadLine());
-            } catch { }
+                Console.CursorLeft = 0;
+                Console.WriteLine("Each value (of 4 total) gives the resolution for its corresponding number in the IP address");
+
+                for (int i = 0; i < 4; i++)
+                { 
+                    try
+                    {
+                        resolutionArray[i] = int.Parse(Console.ReadLine());
+                    } catch { }
+                    resolution = (int)Math.Pow(resolutionArray[0] * resolutionArray[1] * resolutionArray[2] * resolutionArray[3], (float)1 / 4);
+                }
+            }
+            else
+            {
+
+                try
+                {
+                    resolution = int.Parse(Console.ReadLine());
+
+                }
+                catch
+                { }
+
+                for (int i = 0; i < 4; i++)
+                { 
+                    resolutionArray[i] = resolution;
+                }
+
+            }
+
             Console.CursorVisible = false;
 
             Console.WriteLine($"{Environment.NewLine}");
@@ -51,7 +85,7 @@ namespace Ping_Map
 
             Progress.Total = (int)Math.Pow(resolution, 4);
 
-            var ipList = GenerateIPlist(resolution);
+            var ipList = GenerateIPlist(resolutionArray);
 
             var data = PingArray(ipList).Result; //Pings all the ips. this can take very long time
 
@@ -60,7 +94,7 @@ namespace Ping_Map
 
             Console.WriteLine($"{Environment.NewLine}");
 
-            CreateImage(ipList, working, delay, resolution, accelerator); // Maps IPs to image
+            CreateImage(ipList, working, delay, resolution, accelerator, resolutionArray); // Maps IPs to image
             
             // Completion
             Console.WriteLine($"{Environment.NewLine}{Environment.NewLine}Process Completed. You may now close this window");
@@ -129,11 +163,12 @@ namespace Ping_Map
         }
         
 
-        public static ArrayList GenerateIPlist(int resolution)
+        public static ArrayList GenerateIPlist(int[] resolutionArray)
         {
+            var resolutionArrayTotal = (int)Math.Pow((resolutionArray[0] * resolutionArray[1] * resolutionArray[2] * resolutionArray[3]), (float)1 / 4);
+
             ArrayList ipList = new ArrayList();
 
-            var sideLen = (int)Math.Sqrt(resolution);
 
             // create addValues
             int add1 = 0;
@@ -149,30 +184,36 @@ namespace Ping_Map
                 add4
             };
 
-            var scale = 256 / resolution;
+            int[] sideLen = { 4, 4, 4, 4 };
+            int[] scale = { 16, 16, 16, 16};
+            for (int i = 0; i < 4; i++)
+            {
+                sideLen[i] = (int)Math.Sqrt(resolutionArray[i]);
+                scale[i] = 256 / resolutionArray[i];
+            }
+            
 
             //loop through all the IPs in a specific order
-
-            for (var i5 = 0; i5 <= Math.Pow(resolution, 2) - 1; i5++)
+            for (var i5 = 0; i5 <= Math.Pow(resolutionArrayTotal, 2) - 1; i5++)
             {
                 add1 = addValues[0];
                 add2 = addValues[1];
                 add3 = addValues[2];
                 add4 = addValues[3];
 
-                for (var i4 = 1 + (add1 * sideLen); i4 <= sideLen + (add1 * sideLen); i4++)
+                for (var i4 = 1 + (add1 * sideLen[0]); i4 <= sideLen[0] + (add1 * sideLen[0]); i4++)
                 {
 
-                    for (var i3 = 1 + (add2 * sideLen); i3 <= sideLen + (add2 * sideLen); i3++)
+                    for (var i3 = 1 + (add2 * sideLen[1]); i3 <= sideLen[1] + (add2 * sideLen[1]); i3++)
                     {
 
-                        for (var i2 = 1 + (add3 * sideLen); i2 <= sideLen + (add3 * sideLen); i2++)
+                        for (var i2 = 1 + (add3 * sideLen[2]); i2 <= sideLen[2] + (add3 * sideLen[2]); i2++)
                         {
 
-                            for (var i1 = 1 + (add4 * sideLen); i1 <= sideLen + (add4 * sideLen); i1++)
+                            for (var i1 = 1 + (add4 * sideLen[3]); i1 <= sideLen[3] + (add4 * sideLen[3]); i1++)
                             {
 
-                                string ip = $"{(i4 - 1) * scale}.{(i3 - 1) * scale}.{(i2 - 1) * scale}.{(i1 - 1) * scale}";
+                                string ip = $"{(i4 - 1) * scale[0]}.{(i3 - 1) * scale[1]}.{(i2 - 1) * scale[2]}.{(i1 - 1) * scale[3]}";
 
                                 ipList.Add(ip);
                             }
@@ -186,7 +227,7 @@ namespace Ping_Map
             return ipList;
         }
 
-        public static List<int> NewLine(List<int> prev, int sideLen)
+        public static List<int> NewLine(List<int> prev, int[] sideLen)
         {
             // unpack
             var add1 = prev[0];
@@ -198,25 +239,25 @@ namespace Ping_Map
             add4++;
 
             // overflow logic
-            if (add4 >= sideLen)
+            if (add4 >= sideLen[3])
             {
                 add4 = 0;
                 add3++;
             }
 
-            if (add3 >= sideLen)
+            if (add3 >= sideLen[2])
             {
                 add3 = 0;
                 add2++;
             }
 
-            if (add2 >= sideLen)
+            if (add2 >= sideLen[1])
             {
                 add2 = 0;
                 add1++;
             }
 
-            if (add1 >= sideLen)
+            if (add1 >= sideLen[0])
             {
                 add1 = 0;
             }

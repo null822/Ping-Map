@@ -9,7 +9,7 @@ namespace Ping_Map
 {
     internal class ImageTest
     {
-        public static void CreateImage(ArrayList ipArrayList, List<string> working, List<int> delay, int resolution, Accelerator accelerator)
+        public static void CreateImage(ArrayList ipArrayList, List<string> working, List<int> delay, int resolution, Accelerator accelerator, int[] resolutionArray)
         {
             List<string> ipList = new List<string>();
             foreach (string ip in ipArrayList)
@@ -68,7 +68,7 @@ namespace Ping_Map
                 Console.WriteLine($"{Environment.NewLine}");
                 Console.WriteLine("Saving Image");
 
-                image.SaveAsync("map_" + resolution +".png");
+                image.SaveAsync($"map_{resolutionArray[0]}-{resolutionArray[1]}-{resolutionArray[2]}-{resolutionArray[3]}.png");
             }
         }
         
